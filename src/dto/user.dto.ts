@@ -1,4 +1,4 @@
-import { Document } from 'mongoose';
+import { type Document } from 'mongoose';
 
 export interface IUser extends Document {
   name: string;
@@ -12,6 +12,8 @@ export interface IUser extends Document {
   isVerified: boolean;
   courses: Array<{ courseId: string }>;
   comparePassword: (password: string) => Promise<boolean>;
+  SignAccessToken: () => string;
+  SignRefreshToken: () => string;
 }
 
 export interface IRegistrationBody {
@@ -29,4 +31,9 @@ export interface IActivationRequest {
 export interface IVerifiedAccountType {
   user: IUser;
   activationCode: string;
+}
+
+export interface ILoginRequest {
+  email: string;
+  password: string;
 }

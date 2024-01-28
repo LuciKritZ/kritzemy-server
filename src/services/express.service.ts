@@ -12,7 +12,7 @@ import cookieParser from 'cookie-parser';
 import { ErrorMiddleware } from '@/middlewares';
 import { UserRouter } from '@/routes';
 
-export default (ORIGINS: string[]): Application => {
+const applicationService = (ORIGINS: string[]): Application => {
   const app = express();
 
   // Body Parser
@@ -55,3 +55,5 @@ export default (ORIGINS: string[]): Application => {
 
   return app;
 };
+
+export default applicationService;

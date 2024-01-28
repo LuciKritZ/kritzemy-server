@@ -1,13 +1,17 @@
+import { getEnvVariable } from '@/config';
 import { Redis } from 'ioredis';
 
-const redisClient = (redisURL: string) => {
+export const redisService = (): Redis => {
   // TODO: Implement caching in future
+  const redisURL = getEnvVariable('REDIS_URL');
   if (redisURL) {
-    console.log(`Redis connected!`);
-    return redisClient;
+    const client = new Redis(redisURL);
+    return client;
   }
 
   throw new Error('Redis connection failed.');
 };
 
-export default redisClient;
+export const redisClient = redisService();
+
+export default redisService;

@@ -1,12 +1,13 @@
 import {
   type CallbackWithoutResultAndOptionalError,
-  type Document,
   type Model,
   Schema,
   model,
 } from 'mongoose';
 import { compare, hash } from 'bcrypt';
 import { IUser } from '@/dto';
+import { getEnvVariable } from '@/config';
+import { sign } from 'jsonwebtoken';
 
 const emailRegex: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -72,6 +73,18 @@ UserSchema.methods.comparePassword = async function (
   enteredPassword: string
 ): Promise<boolean> {
   return await compare(enteredPassword, this.password);
+};
+
+// Sign Access Token
+UserSchema.methods.SignAccessToken = function (): string {
+  const ACCESS_TOKEN_SECRET_KEY = getEnvVariable('ACCESS_TOKEN_SECRET_KEY');
+  return sign({ id: this._id }, ACCESS_TOKEN_SECRET_KEY);
+};
+
+// Sign Refresh Token
+UserSchema.methods.SignRefreshToken = function (): string {
+  const REFRESH_TOKEN_SECRET_KEY = getEnvVariable('REFRESH_TOKEN_SECRET_KEY');
+  return sign({ id: this._id }, REFRESH_TOKEN_SECRET_KEY);
 };
 
 const UserModel: Model<IUser> = model('User', UserSchema);

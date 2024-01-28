@@ -1,16 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserModel } from '@/models';
 import { CatchAsyncErrors } from '@/middlewares';
-import { ErrorHandler, sendEmail, verifyActivationToken } from '@/utils';
+import {
+  ErrorHandler,
+  sendEmail,
+  sendSecurityTokens,
+  verifyActivationToken,
+} from '@/utils';
 import { createActivationToken } from '@/utils';
 import { render as renderEmail } from 'ejs';
 import { join as joinPath } from 'path';
 import {
   IActivationRequest,
+  ILoginRequest,
   IRegistrationBody,
   IVerifiedAccountType,
 } from '@/dto';
 import { USER_CONTROLLER_ERRORS } from '@/constants';
+import { redisClient } from '@/services';
 
 // Registering user
 export const registerUser = CatchAsyncErrors(
@@ -102,6 +109,61 @@ export const activateUser = CatchAsyncErrors(
 
       res.status(201).json({
         success: true,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Login
+export const loginUser = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email, password } = req.body as ILoginRequest;
+
+      if (!email || !password) {
+        return next(
+          new ErrorHandler(USER_CONTROLLER_ERRORS.EMAIL_PASSWORD_MISSING, 400)
+        );
+      }
+
+      const user = await UserModel.findOne({ email }).select('+password');
+
+      if (!user) {
+        return next(
+          new ErrorHandler(USER_CONTROLLER_ERRORS.INVALID_EMAIL_PASSWORD, 400)
+        );
+      }
+
+      const isPasswordCorrect = await user.comparePassword(password);
+
+      if (!isPasswordCorrect) {
+        return next(
+          new ErrorHandler(USER_CONTROLLER_ERRORS.INVALID_EMAIL_PASSWORD, 400)
+        );
+      }
+
+      sendSecurityTokens(user, 200, res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Logout
+export const logoutUser = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      res.cookie('access_token', '', { maxAge: 1 });
+      res.cookie('refresh_token', '', { maxAge: 1 });
+      const userId = req.user?._id || '';
+
+      if (userId) redisClient.del(userId);
+
+      res.status(200).json({
+        success: true,
+        message: 'Logged out successfully',
       });
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
