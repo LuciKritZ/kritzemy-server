@@ -3,8 +3,11 @@ import { UserModel } from '@/models';
 import { CatchAsyncErrors } from '@/middlewares';
 import {
   ErrorHandler,
+  decodeSecurityToken,
+  getGeneratedTokenOptions,
   sendEmail,
   sendSecurityTokens,
+  signSecurityToken,
   verifyActivationToken,
 } from '@/utils';
 import { createActivationToken } from '@/utils';
@@ -16,8 +19,9 @@ import {
   IRegistrationBody,
   IVerifiedAccountType,
 } from '@/dto';
-import { USER_CONTROLLER_ERRORS } from '@/constants';
+import { AUTH_ERRORS, USER_CONTROLLER_ERRORS } from '@/constants';
 import { redisClient } from '@/services';
+import { getUserById } from '@/operations';
 
 // Registering user
 export const registerUser = CatchAsyncErrors(
@@ -59,7 +63,7 @@ export const registerUser = CatchAsyncErrors(
           data: emailProps,
         });
 
-        res.status(201).json({
+        return res.status(201).json({
           success: true,
           message: `Please check your email: ${user.email} to activate your account.`,
           activation_token: token,
@@ -107,7 +111,7 @@ export const activateUser = CatchAsyncErrors(
         password,
       });
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
       });
     } catch (error: any) {
@@ -161,10 +165,92 @@ export const logoutUser = CatchAsyncErrors(
 
       if (userId) redisClient.del(userId);
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: 'Logged out successfully',
       });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Updating access token
+export const updateAccessToken = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const refresh_token = req.cookies.refresh_token as string;
+      const decoded = decodeSecurityToken(
+        refresh_token,
+        'REFRESH_TOKEN_SECRET_KEY'
+      );
+
+      const message = 'Unable to refresh token';
+
+      const session = await redisClient.get(decoded.id as string);
+      if (!session) {
+        return next(new ErrorHandler(message, 400));
+      }
+
+      const user = JSON.parse(session);
+
+      const accessToken = signSecurityToken({
+        id: user._id,
+        expiresIn: '5m',
+        tokenType: 'ACCESS_TOKEN_SECRET_KEY',
+      });
+
+      const refreshToken = signSecurityToken({
+        id: user._id,
+        expiresIn: '3d',
+        tokenType: 'REFRESH_TOKEN_SECRET_KEY',
+      });
+
+      const { accessTokenOptions, refreshTokenOptions } =
+        getGeneratedTokenOptions();
+
+      res.cookie('access_token', accessToken, accessTokenOptions);
+      res.cookie('refresh_token', refreshToken, refreshTokenOptions);
+
+      return res.status(200).json({
+        success: true,
+        accessToken,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Get user info
+export const getUserInfo = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?._id;
+
+      getUserById(userId, res);
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Social Authentication
+// TODO: SECURE THIS
+export const socialAuthentication = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email, name, avatar } = req.body;
+
+      const user = await UserModel.findOne({ email });
+
+      if (!user) {
+        const newUser = await UserModel.create({ email, name, avatar });
+
+        sendSecurityTokens(newUser, 200, res);
+      } else {
+        sendSecurityTokens(user, 200, res);
+      }
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
     }

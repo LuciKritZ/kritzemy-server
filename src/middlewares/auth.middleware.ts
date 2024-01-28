@@ -1,8 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { CatchAsyncErrors } from './error.middleware';
-import { ErrorHandler } from '@/utils';
-import { JwtPayload, verify } from 'jsonwebtoken';
-import { getEnvVariable } from '@/config';
+import { ErrorHandler, decodeSecurityToken } from '@/utils';
+import { JwtPayload } from 'jsonwebtoken';
 import { redisClient } from '@/services';
 import { AUTH_ERRORS } from '@/constants';
 
@@ -14,10 +13,9 @@ export const isAuthenticated = CatchAsyncErrors(
       return next(new ErrorHandler(AUTH_ERRORS.LOGIN_TO_CONTINUE, 400));
     }
 
-    const ACCESS_TOKEN_SECRET_KEY = getEnvVariable('ACCESS_TOKEN_SECRET_KEY');
-    const decoded = verify(
+    const decoded = decodeSecurityToken(
       access_token,
-      ACCESS_TOKEN_SECRET_KEY as string
+      'ACCESS_TOKEN_SECRET_KEY'
     ) as JwtPayload;
 
     if (!decoded) {

@@ -6,8 +6,7 @@ import {
 } from 'mongoose';
 import { compare, hash } from 'bcrypt';
 import { IUser } from '@/dto';
-import { getEnvVariable } from '@/config';
-import { sign } from 'jsonwebtoken';
+import { signSecurityToken } from '@/utils';
 
 const emailRegex: RegExp = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,7 +27,6 @@ const UserSchema: Schema<IUser> = new Schema(
     },
     password: {
       type: String,
-      required: [true, 'Please enter your password'],
       minlength: [6, 'Password must be at least 6 characters'],
       select: false,
     },
@@ -77,14 +75,22 @@ UserSchema.methods.comparePassword = async function (
 
 // Sign Access Token
 UserSchema.methods.SignAccessToken = function (): string {
-  const ACCESS_TOKEN_SECRET_KEY = getEnvVariable('ACCESS_TOKEN_SECRET_KEY');
-  return sign({ id: this._id }, ACCESS_TOKEN_SECRET_KEY);
+  const token = signSecurityToken({
+    id: this._id,
+    expiresIn: '5m',
+    tokenType: 'ACCESS_TOKEN_SECRET_KEY',
+  });
+  return token;
 };
 
 // Sign Refresh Token
 UserSchema.methods.SignRefreshToken = function (): string {
-  const REFRESH_TOKEN_SECRET_KEY = getEnvVariable('REFRESH_TOKEN_SECRET_KEY');
-  return sign({ id: this._id }, REFRESH_TOKEN_SECRET_KEY);
+  const token = signSecurityToken({
+    id: this._id,
+    expiresIn: '3d',
+    tokenType: 'REFRESH_TOKEN_SECRET_KEY',
+  });
+  return token;
 };
 
 const UserModel: Model<IUser> = model('User', UserSchema);
