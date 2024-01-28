@@ -1,8 +1,16 @@
 import { getEnvVariable } from '@/config';
-import { IActivationToken, ITokenOptions, IUser } from '@/dto';
+import {
+  IActivationToken,
+  IGenerateTokenOptions,
+  IGetGeneratedTokenOptions,
+  ISignSecurityToken,
+  ITokenOptions,
+  ITokenType,
+  IUser,
+} from '@/dto';
 import { redisClient } from '@/services';
 import { Response } from 'express';
-import { type Secret, sign, verify } from 'jsonwebtoken';
+import { type Secret, sign, verify, JwtPayload } from 'jsonwebtoken';
 
 const ACCESS_TOKEN_SECRET_KEY: Secret = getEnvVariable(
   'ACCESS_TOKEN_SECRET_KEY'
@@ -12,19 +20,40 @@ const createOTPCode = (): string => {
   return Math.floor(1000 + Math.random() * 9000).toString();
 };
 
-const generateTokenOptions = (
-  tokenType: 'ACCESS_TOKEN_VALIDITY' | 'REFRESH_TOKEN_VALIDITY',
-  defaultValue: string
-): ITokenOptions => {
+const generateTokenOptions = ({
+  tokenType,
+  defaultValue,
+  maxAgeMultiplier = 1,
+}: IGenerateTokenOptions): ITokenOptions => {
   const token = parseInt(getEnvVariable(tokenType) ?? defaultValue, 10);
+  const maxAge = token * maxAgeMultiplier * 60 * 60 * 1000;
   const secure = getEnvVariable('NODE_ENV') === 'production';
   return {
-    expires: new Date(Date.now() + token * 1000),
-    maxAge: token * 1000,
+    expires: new Date(Date.now() + maxAge),
+    maxAge,
     httpOnly: true,
     sameSite: 'lax',
     // Only set secure to true in production
     secure,
+  };
+};
+
+export const getGeneratedTokenOptions = (): IGetGeneratedTokenOptions => {
+  const accessTokenOptions: ITokenOptions = generateTokenOptions({
+    tokenType: 'ACCESS_TOKEN_VALIDITY',
+    maxAgeMultiplier: 1,
+    defaultValue: '300',
+  });
+
+  const refreshTokenOptions: ITokenOptions = generateTokenOptions({
+    tokenType: 'REFRESH_TOKEN_VALIDITY',
+    maxAgeMultiplier: 24,
+    defaultValue: '1200',
+  });
+
+  return {
+    accessTokenOptions,
+    refreshTokenOptions,
   };
 };
 
@@ -65,22 +94,34 @@ export const sendSecurityTokens = (
   // Session tracking to redis
   redisClient.set(user._id, JSON.stringify(user));
 
-  const accessTokenOptions: ITokenOptions = generateTokenOptions(
-    'ACCESS_TOKEN_VALIDITY',
-    '300'
-  );
-
-  const refreshTokenOptions: ITokenOptions = generateTokenOptions(
-    'REFRESH_TOKEN_VALIDITY',
-    '1200'
-  );
+  const { accessTokenOptions, refreshTokenOptions } =
+    getGeneratedTokenOptions();
 
   res.cookie('access_token', accessToken, accessTokenOptions);
   res.cookie('refresh_token', refreshToken, refreshTokenOptions);
 
-  res.status(statusCode).json({
+  return res.status(statusCode).json({
     success: true,
     user,
     accessToken,
   });
+};
+
+export const decodeSecurityToken = (token: string, tokenType: ITokenType) => {
+  const SECRET_KEY = getEnvVariable(tokenType);
+  const decoded = verify(token, SECRET_KEY) as JwtPayload;
+
+  return decoded;
+};
+
+export const signSecurityToken = ({
+  id,
+  tokenType,
+  expiresIn,
+}: ISignSecurityToken): string => {
+  const SECRET_KEY = getEnvVariable(tokenType);
+  const token = sign({ id }, SECRET_KEY, {
+    expiresIn,
+  });
+  return token;
 };
