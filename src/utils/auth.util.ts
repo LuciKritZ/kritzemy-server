@@ -2,9 +2,7 @@ import { getEnvVariable } from '@/config';
 import { IActivationToken, IUser } from '@/dto';
 import { type Secret, sign, verify } from 'jsonwebtoken';
 
-const ACCESS_TOKEN_PRIVATE_KEY: Secret = getEnvVariable(
-  'ACCESS_TOKEN_PRIVATE_KEY'
-);
+const JWT_AUTH_SECRET: Secret = getEnvVariable('JWT_AUTH_SECRET');
 
 export const createOTPCode = (): string => {
   return Math.floor(1000 + Math.random() * 9000).toString();
@@ -18,7 +16,7 @@ export function createActivationToken<T>(user: T): IActivationToken {
       user,
       activationCode,
     },
-    ACCESS_TOKEN_PRIVATE_KEY,
+    JWT_AUTH_SECRET,
     {
       expiresIn: '5m',
     }
@@ -31,7 +29,7 @@ export function createActivationToken<T>(user: T): IActivationToken {
 }
 
 export function verifyActivationToken<T>(token: string): T {
-  const verified = verify(token, ACCESS_TOKEN_PRIVATE_KEY);
+  const verified = verify(token, JWT_AUTH_SECRET);
 
   return verified as T;
 }
