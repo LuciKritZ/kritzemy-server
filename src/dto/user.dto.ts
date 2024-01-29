@@ -43,3 +43,17 @@ export interface ISocialAuthBody {
   name: string;
   avatar: string;
 }
+
+export interface IUpdateUserInfo {
+  name?: string;
+  email?: string;
+}
+
+export interface IUpdatePassword {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface IUpdateProfileAvatar {
+  avatar: string;
+}
