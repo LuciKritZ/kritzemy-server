@@ -17,11 +17,15 @@ import {
   IActivationRequest,
   ILoginRequest,
   IRegistrationBody,
+  IUpdatePassword,
+  IUpdateProfileAvatar,
+  IUpdateUserInfo,
   IVerifiedAccountType,
 } from '@/dto';
-import { AUTH_ERRORS, USER_CONTROLLER_ERRORS } from '@/constants';
+import { USER_CONTROLLER_ERRORS } from '@/constants';
 import { redisClient } from '@/services';
 import { getUserById } from '@/operations';
+import { v2 } from 'cloudinary';
 
 // Registering user
 export const registerUser = CatchAsyncErrors(
@@ -209,6 +213,8 @@ export const updateAccessToken = CatchAsyncErrors(
       const { accessTokenOptions, refreshTokenOptions } =
         getGeneratedTokenOptions();
 
+      req.user = user;
+
       res.cookie('access_token', accessToken, accessTokenOptions);
       res.cookie('refresh_token', refreshToken, refreshTokenOptions);
 
@@ -251,6 +257,128 @@ export const socialAuthentication = CatchAsyncErrors(
       } else {
         sendSecurityTokens(user, 200, res);
       }
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Update user info
+export const updateUserInfo = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { name, email } = req.body as IUpdateUserInfo;
+      const userId = req.user?._id;
+
+      const user = await UserModel.findById(userId);
+
+      if (email && user) {
+        const isEmailExist = await UserModel.findOne({ email });
+
+        if (isEmailExist) {
+          return next(
+            new ErrorHandler(USER_CONTROLLER_ERRORS.EMAIL_ALREADY_EXISTS, 400)
+          );
+        }
+
+        user.email = email;
+      }
+
+      if (name && user) {
+        user.name = name;
+      }
+
+      await user?.save();
+
+      await redisClient.set(userId, JSON.stringify(user));
+
+      return res.status(200).json({
+        success: true,
+        user,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Update user password
+export const updatePassword = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { currentPassword, newPassword } = req.body as IUpdatePassword;
+
+      if (!currentPassword || !newPassword) {
+        return next(
+          new ErrorHandler(
+            USER_CONTROLLER_ERRORS.INCORRECT_CURRENT_AND_NEW_PASSWORD,
+            400
+          )
+        );
+      }
+
+      const user = await UserModel.findById(req.user?._id).select('+password');
+
+      if (user?.password === undefined) {
+        return next(new ErrorHandler(USER_CONTROLLER_ERRORS.INVALID_USER, 400));
+      }
+
+      const isOldPasswordCorrect = await user?.comparePassword(currentPassword);
+
+      if (!isOldPasswordCorrect) {
+        return next(
+          new ErrorHandler(USER_CONTROLLER_ERRORS.INVALID_CURRENT_PASSWORD, 400)
+        );
+      }
+
+      user.password = newPassword;
+
+      await user.save();
+      await redisClient.set(user._id, JSON.stringify(user));
+
+      return res.status(200).json({
+        success: true,
+        user,
+      });
+    } catch (error: any) {
+      return next(new ErrorHandler(error.message, 400));
+    }
+  }
+);
+
+// Update profile avatar
+export const updateProfileAvatar = CatchAsyncErrors(
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { avatar } = req.body as IUpdateProfileAvatar;
+
+      const user = await UserModel.findById(req.user?._id);
+
+      if (!user) {
+        return next(new ErrorHandler(USER_CONTROLLER_ERRORS.INVALID_USER, 400));
+      }
+
+      if (user?.avatar?.public_id) {
+        await v2.uploader.destroy(user.avatar.public_id);
+      }
+
+      const myCloud = await v2.uploader.upload(avatar, {
+        folder: 'avatars',
+        width: 150,
+      });
+
+      user.avatar = {
+        public_id: myCloud.public_id,
+        url: myCloud.secure_url,
+      };
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Profile picture updated',
+        user,
+      });
     } catch (error: any) {
       return next(new ErrorHandler(error.message, 400));
     }

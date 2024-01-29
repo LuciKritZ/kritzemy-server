@@ -7,6 +7,9 @@ import {
   registerUser,
   socialAuthentication,
   updateAccessToken,
+  updatePassword,
+  updateProfileAvatar,
+  updateUserInfo,
 } from '@/controllers';
 import { isAuthenticated } from '@/middlewares';
 
@@ -22,5 +25,8 @@ router.post('/social-login', socialAuthentication);
 router.use(isAuthenticated);
 router.post('/logout', logoutUser);
 router.get('/me', getUserInfo);
+router.put('/update', updateUserInfo);
+router.put('/update/password', updatePassword);
+router.put('/update/avatar', updateProfileAvatar);
 
 export { router as UserRouter };

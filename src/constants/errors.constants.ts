@@ -3,6 +3,10 @@ export const USER_CONTROLLER_ERRORS = {
   USER_ALREADY_EXISTS: 'User already exists',
   EMAIL_PASSWORD_MISSING: 'Please enter email and password to login',
   INVALID_EMAIL_PASSWORD: 'Invalid email or password',
+  EMAIL_ALREADY_EXISTS: 'Email already exists',
+  INVALID_CURRENT_PASSWORD: 'Incorrect current password',
+  INVALID_USER: 'Invalid user',
+  INCORRECT_CURRENT_AND_NEW_PASSWORD: 'Please enter current and new password',
 };
 
 export const AUTH_ERRORS = {
