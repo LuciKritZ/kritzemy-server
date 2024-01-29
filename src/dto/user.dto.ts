@@ -1,13 +1,11 @@
 import { type Document } from 'mongoose';
+import { CloudinaryImage } from './cloudinary.dto';
 
 export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
-  avatar: {
-    public_id: string;
-    url: string;
-  };
+  avatar: CloudinaryImage;
   role: string;
   isVerified: boolean;
   courses: Array<{ courseId: string }>;
